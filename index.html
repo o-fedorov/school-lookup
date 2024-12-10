@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>School Lookup</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        input {
+            margin: 5px 0;
+        }
+
+        .result {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>School Lookup</h1>
+    <small>
+        <a href="https://www.tdsb.on.ca/Find-your/School/By-Home-Address">Schools</a>
+        | <a
+            href="https://www.compareschoolrankings.org/pdf/report-card-on-ontario-elementary-schools-2024.pdf">Ratings</a>
+    </small>
+    <form id="lookupForm">
+        <label for="streetInput">Enter Street Number and Name:</label><br>
+        <input type="text" id="streetInput" placeholder="123 street" required><br>
+        <button type="submit">Search</button>
+    </form>
+
+    <div id="results" class="result"></div>
+
+    <script>
+        let schoolsData = [];
+
+        async function loadSchoolsData() {
+            try {
+                const response = await fetch('schools.json');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch schools data');
+                }
+                schoolsData = await response.json();
+            } catch (error) {
+                console.error('Error loading schools data:', error);
+            }
+        };
+
+        loadSchoolsData();
+
+        function getTrendEmoji(trend) {
+            switch (trend) {
+                case "up":
+                    return "🔺";
+                case "down":
+                    return "🔻";
+                case "flat":
+                    return "-";
+                case "na":
+                default:
+                    return "N/A";
+            }
+        };
+
+        function getSchoolLinkHTML(schoolId) {
+            if (schoolId !== null) {
+                return `<a href="https://www.tdsb.on.ca/Find-your/Schools/schno/${schoolId}">⇗</a>`;
+            } else {
+                return '(no link)';
+            }
+        };
+
+        function getSchoolRatingHTML(curRating, avgRating, trend) {
+            if (curRating !== null) {
+                return `${getTrendEmoji(trend)} ${curRating} (${avgRating})`;
+            } else {
+                return '(no rating)';
+            }
+        };
+
+        document.getElementById('lookupForm').addEventListener('submit', function (event) {
+            event.preventDefault();
+
+            const input = document.getElementById('streetInput').value.trim();
+            const [streetNumber, ...streetNameParts] = input.split(' ');
+            const streetName = streetNameParts.join(' ').toLowerCase();
+            const streetNumberInt = parseInt(streetNumber, 10);
+
+            if (isNaN(streetNumberInt)) {
+                alert('Please enter a valid street number.');
+                return;
+            }
+
+            const resultsContainer = document.getElementById('results');
+            resultsContainer.innerHTML = '';
+
+            const matches = schoolsData.filter(school => {
+                const nameMatches = school.name.toLowerCase().includes(streetName);
+                const numberMatches = streetNumberInt >= school.first && streetNumberInt <= school.last;
+                const parityMatches = (school.is_even && streetNumberInt % 2 === 0) ||
+                    (school.is_odd && streetNumberInt % 2 !== 0);
+
+                return nameMatches && numberMatches && parityMatches;
+            });
+
+            if (matches.length === 0) {
+                resultsContainer.innerHTML = '<p>No schools found for the given address.</p>';
+            } else {
+                const list = document.createElement('ul');
+                matches.forEach(school => {
+                    const listItem = document.createElement('li');
+
+                    listItem.innerHTML = `
+                        <h4>${school.school_name}${getSchoolLinkHTML(school.id)}</h4>
+                        <p>${school.name} | ${getSchoolRatingHTML(school.cur_rating, school.avg_rating, school.trend)}
+                    `;
+                    list.appendChild(listItem);
+                });
+                resultsContainer.appendChild(list);
+            }
+        });
+    </script>
+</body>
+
+</html>
